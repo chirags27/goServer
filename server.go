@@ -6,12 +6,24 @@ import(
 "os"
 "os/signal"
 "syscall"
+"io"
 )
 
-var socketFilePath = "socketFileForComm.sock"
+var port = ":4560"
+
+
+type  FileRequest struct{
+
+	Username string
+	Password string
+	File 	 string
+}
+
 
 func main(){
-	ln, err := net.Listen("unix", socketFilePath)
+
+
+	ln, err := net.Listen("tcp", port)
 	if err!=nil{
 		fmt.Printf("Error creating a UNIX domain socket.\n")
 		panic(err)
@@ -23,7 +35,6 @@ func main(){
 
 	go func(){
 		_ = <-sigs
-		os.Remove(socketFilePath)
 		fmt.Printf("Exiting Server Gracefully.\n")
 		os.Exit(0)
 	}()
@@ -39,7 +50,7 @@ func main(){
 			fmt.Printf("Error in accpeting the connection.\n")
 		}
 		numServed = numServed + 1
-		go serveClient(&conn, numServed, sendChannel)
+		go serveClient(conn, numServed, sendChannel)
 	}
 
 	return
@@ -47,9 +58,19 @@ func main(){
 }
 
 
-func serveClient(conn *net.Conn, numServed int, c chan int){
+func serveClient(conn net.Conn, numServed int, c chan int){
 
 	fmt.Printf("Servicing ....\n")
+	var receivedReq []byte
+	_,err := conn.Read(receivedReq)
+
+	if err!=nil && err!=io.EOF{
+		fmt.Printf("Error occured while reading. Couldn't serve. Returning.\n")
+		panic(err)
+		return
+	}
+
+	fmt.Printf("Received: %s\n", string(receivedReq))
 	c <- numServed
 }
 
