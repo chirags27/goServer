@@ -8,7 +8,7 @@ import(
 // "time"
 )
 
-var tcpAddr = "localhost:4560"
+var tcpAddr = "127.0.0.1:4560"
 
 
 type  FileRequest struct{
@@ -16,6 +16,12 @@ type  FileRequest struct{
 	Username string
 	Password string
 	File 	 string
+}
+
+type  FileResponse struct{
+
+	Status 			 int
+	FileContents 	 string
 }
 
 
@@ -63,7 +69,21 @@ func main(){
 		return
 	}
 
-	fmt.Printf("Sent: %s\n", string(jsonReq))
+	fmt.Printf("Sent: %s -- Waiting for Reply\n", string(jsonReq))
+
+	d := json.NewDecoder(conn)
+	var resp FileResponse
+	err = d.Decode(&resp)
+	if err!=nil{
+		fmt.Printf("Error in decoding the received message.\n")
+		return
+	}
+
+	if resp.Status == 1{
+		fmt.Printf("Contents: %s", resp.FileContents)
+	}else{
+		fmt.Printf("Invalid ID, Password or Filename. Try again.\n")
+	}
 	
 	return
 }

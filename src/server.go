@@ -6,7 +6,9 @@ import(
 "os"
 "os/signal"
 "syscall"
-"io"
+"encoding/json"
+"time"
+"io/ioutil"
 )
 
 var port = ":4560"
@@ -19,6 +21,16 @@ type  FileRequest struct{
 	File 	 string
 }
 
+type  FileResponse struct{
+
+	Status 			 int
+	FileContents 	 string
+}
+
+var id string = "chshah"
+var pass string = "abc"
+var dir string = "./../secure/"
+
 
 func main(){
 
@@ -30,27 +42,22 @@ func main(){
 		return
 	}
 
-	sigs := make(chan os.Signal, 1)
+	sigs := make(chan os.Signal, 1)	
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func(){
 		_ = <-sigs
-		fmt.Printf("Exiting Server Gracefully.\n")
+		fmt.Printf("\nExiting Server Gracefully.\n")
 		os.Exit(0)
 	}()
-
-	numServed :=0
-	sendChannel := make(chan int)
 	
-	go printRoutine(sendChannel)
-
 	for {
 		conn, err := ln.Accept()
 		if err!=nil{
 			fmt.Printf("Error in accpeting the connection.\n")
 		}
-		numServed = numServed + 1
-		go serveClient(conn, numServed, sendChannel)
+
+		go serveClient(conn)
 	}
 
 	return
@@ -58,29 +65,59 @@ func main(){
 }
 
 
-func serveClient(conn net.Conn, numServed int, c chan int){
+func serveClient(conn net.Conn){
 
 	fmt.Printf("Servicing ....\n")
-	var receivedReq []byte
-	_,err := conn.Read(receivedReq)
 
-	if err!=nil && err!=io.EOF{
-		fmt.Printf("Error occured while reading. Couldn't serve. Returning.\n")
-		panic(err)
+
+	d := json.NewDecoder(conn)
+	var receivedReq FileRequest
+	err := d.Decode(&receivedReq)
+	if err!=nil{
+		fmt.Printf("Error in decoding the received message.\n")
 		return
 	}
 
-	fmt.Printf("Received: %s\n", string(receivedReq))
-	c <- numServed
+	sendChannel := make(chan int)
+	var statusToSend int = 1
+	var fileContentsString string = ""
+
+	if receivedReq.Username == id && receivedReq.Password == pass{
+		fmt.Printf("User Validated\n")
+		go printRoutine(sendChannel) 
+		fileContents, err := ioutil.ReadFile(dir + receivedReq.File)
+		fileContentsString = string(fileContents)
+		if err!=nil{
+			statusToSend = 0
+		}
+		
+	}else{
+		fmt.Printf("Invalid User\n")
+		statusToSend = 0
+	}
+
+	var reply FileResponse
+	reply.Status = statusToSend
+	reply.FileContents = fileContentsString
+
+	replyToSend,_ := json.Marshal(&reply)
+	conn.Write(replyToSend)
+
+	sendChannel <- 1
 }
 
 func printRoutine(c chan int){
 
-	fmt.Printf("Waiting to serve clients.\n")
-	for {
-	num := <-c
-	fmt.Printf("Total Clients Served: %v\n", num)
-}
-
-
+	// print ... every time when processing
+	fmt.Printf("Fetching the file\n")
+	for{
+		select{
+		case <-c:
+			fmt.Printf("Processing done!\n")
+			return
+		default:
+			fmt.Printf("..")
+			time.Sleep(time.Second*1)
+		}
+	}
 }
