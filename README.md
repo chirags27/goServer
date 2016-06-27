@@ -9,6 +9,7 @@ To build the executable:
 
 ```bash
 mkdir build
+cd build
 go build ./../src/server.go
 go build ./../src/client.go
 ```
