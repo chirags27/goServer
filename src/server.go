@@ -34,6 +34,19 @@ var dir string = "./../secure/"
 
 func main(){
 
+	if len(os.Args) !=3 && len(os.Args) !=4{
+		fmt.Printf("USAGE: \n./server <ID_TO_SET> <PASSWORD_TO_SET> [DIRECTORY_FOR_FILES]\n")
+		fmt.Printf("Default Direcotry is ./../secure\n")
+		return
+	}
+
+	id = os.Args[1]
+	pass = os.Args[2]
+
+	if len(os.Args) == 4{
+		dir = os.Args[3]
+	}
+
 
 	ln, err := net.Listen("tcp", port)
 	if err!=nil{
@@ -51,6 +64,8 @@ func main(){
 		os.Exit(0)
 	}()
 	
+	fmt.Printf("Remote File Server -- Listening on port 4560\n")
+
 	for {
 		conn, err := ln.Accept()
 		if err!=nil{
@@ -67,7 +82,7 @@ func main(){
 
 func serveClient(conn net.Conn){
 
-	fmt.Printf("Servicing ....\n")
+	fmt.Printf("Started reading the Request\n")
 
 
 	d := json.NewDecoder(conn)
@@ -89,6 +104,7 @@ func serveClient(conn net.Conn){
 		fileContentsString = string(fileContents)
 		if err!=nil{
 			statusToSend = 0
+			sendChannel<-1
 		}
 		
 	}else{
@@ -103,7 +119,7 @@ func serveClient(conn net.Conn){
 	replyToSend,_ := json.Marshal(&reply)
 	conn.Write(replyToSend)
 
-	sendChannel <- 1
+	sendChannel <- 0
 }
 
 func printRoutine(c chan int){
@@ -112,12 +128,16 @@ func printRoutine(c chan int){
 	fmt.Printf("Fetching the file\n")
 	for{
 		select{
-		case <-c:
-			fmt.Printf("Processing done!\n")
+		case recvStatus:=<-c:
+			if recvStatus == 1{
+				fmt.Printf("Requested File not found\n")
+			}else{
+			fmt.Printf("\nProcessing done!\n")
+			}
 			return
 		default:
-			fmt.Printf("..")
-			time.Sleep(time.Second*1)
+			fmt.Printf(".")
+			time.Sleep(time.Millisecond*50)
 		}
 	}
 }

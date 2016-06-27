@@ -8,7 +8,9 @@ import(
 // "time"
 )
 
-var tcpAddr = "127.0.0.1:4560"
+var tcpAddr string = "127.0.0.1:4560"
+
+var targetDirectory string = "downloaded"
 
 
 type  FileRequest struct{
@@ -25,13 +27,19 @@ type  FileResponse struct{
 }
 
 
+
+
 func main(){
 
 	// Get the credentails and files requested
 	
-	if len(os.Args) !=4 {
-		fmt.Printf("USAGE: ./client ID PASSWORD FILE\n")
+	if len(os.Args) !=4 && len(os.Args) !=5{
+		fmt.Printf("USAGE: ./client <ID> <PASSWORD> <FILE> <TARGET_DIRECTORY>\n")
+		fmt.Printf("Default Target Direcory: downloaded/ \n")
 		return
+	}
+	if len(os.Args) == 5{
+		targetDirectory = os.Args[4]
 	}
 
 
@@ -69,7 +77,7 @@ func main(){
 		return
 	}
 
-	fmt.Printf("Sent: %s -- Waiting for Reply\n", string(jsonReq))
+	// fmt.Printf("Sent: %s -- Waiting for Reply\n", string(jsonReq))
 
 	d := json.NewDecoder(conn)
 	var resp FileResponse
@@ -79,11 +87,39 @@ func main(){
 		return
 	}
 
-	if resp.Status == 1{
-		fmt.Printf("Contents: %s", resp.FileContents)
-	}else{
+	if resp.Status != 1{
 		fmt.Printf("Invalid ID, Password or Filename. Try again.\n")
+		return
 	}
-	
-	return
+
+	printChannel := make(chan int)
+	go printRoutine(printChannel)
+
+	printChannel<-1
+	// Create a file in the local directory and write the contents to it
+	err = os.Mkdir(targetDirectory, 0777)
+	f,err := os.Create(targetDirectory + "/" + reqToSend.File)
+	err = os.Chmod(targetDirectory + "/" + reqToSend.File, 0666)
+
+	if err!=nil{
+		panic(err)
+	}
+
+	_, err = f.Write([]byte(resp.FileContents))
+
+	if err!=nil{
+		panic(err)
+	}
+	printChannel<-1
+	<-printChannel
+}
+
+
+func printRoutine(printChannel chan int){
+	<-printChannel
+	fmt.Printf("Started writing the received contents!\n")
+	<-printChannel
+	fmt.Printf("Done writing the received contents!\n")
+	printChannel<-1
+
 }
