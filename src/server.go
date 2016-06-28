@@ -9,6 +9,7 @@ import(
 "encoding/json"
 "time"
 "io/ioutil"
+"sync"
 )
 
 var port = ":4560"
@@ -31,6 +32,8 @@ var id string = "chshah"
 var pass string = "abc"
 var dir string = "./../secure/"
 
+var accessInfo = make(map[string]int)
+var lockingInterval time.Duration = 3
 
 func main(){
 
@@ -66,13 +69,16 @@ func main(){
 	
 	fmt.Printf("Remote File Server -- Listening on port 4560\n")
 
+	var m sync.Mutex
+
 	for {
 		conn, err := ln.Accept()
 		if err!=nil{
 			fmt.Printf("Error in accpeting the connection.\n")
+			return
 		}
 
-		go serveClient(conn)
+		go serveClient(conn, &m)
 	}
 
 	return
@@ -80,9 +86,10 @@ func main(){
 }
 
 
-func serveClient(conn net.Conn){
+func serveClient(conn net.Conn, m *sync.Mutex){
 
 	fmt.Printf("Started reading the Request\n")
+
 
 
 	d := json.NewDecoder(conn)
@@ -100,7 +107,26 @@ func serveClient(conn net.Conn){
 	if receivedReq.Username == id && receivedReq.Password == pass{
 		fmt.Printf("User Validated\n")
 		go printRoutine(sendChannel) 
+		// check whether the file asked is being transfered.
+		// If yes, wait for the request to complete
+		for{
+			m.Lock()
+			if(accessInfo[receivedReq.File] == 0){
+				accessInfo[receivedReq.File] = 1
+				break
+			}else{
+				m.Unlock()
+				time.Sleep(lockingInterval*time.Second)
+			}
+		}
+		m.Unlock()
+
 		fileContents, err := ioutil.ReadFile(dir + receivedReq.File)
+
+		m.Lock()
+		accessInfo[receivedReq.File] = 0
+		m.Unlock()
+
 		fileContentsString = string(fileContents)
 		if err!=nil{
 			statusToSend = 0
