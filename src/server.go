@@ -1,31 +1,28 @@
 package main
 
-import(
-"fmt"
-"net"
-"os"
-"os/signal"
-"syscall"
-"encoding/json"
-"time"
-"io/ioutil"
-"sync"
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 )
 
 var port = ":4560"
 
-
-type  FileRequest struct{
-
+type FileRequest struct {
 	Username string
 	Password string
-	File 	 string
+	File     string
 }
 
-type  FileResponse struct{
-
-	Status 			 int
-	FileContents 	 []byte
+type FileResponse struct {
+	Status       int
+	FileContents []byte
 }
 
 var id string = "chshah"
@@ -35,9 +32,9 @@ var dir string = "./../secure/"
 var accessInfo = make(map[string]int)
 var lockingInterval time.Duration = 3
 
-func main(){
+func main() {
 
-	if len(os.Args) !=3 && len(os.Args) !=4{
+	if len(os.Args) != 3 && len(os.Args) != 4 {
 		fmt.Printf("USAGE: \n./server <ID_TO_SET> <PASSWORD_TO_SET> [DIRECTORY_FOR_FILES]\n")
 		fmt.Printf("Default Direcotry is ./../secure\n")
 		return
@@ -46,34 +43,33 @@ func main(){
 	id = os.Args[1]
 	pass = os.Args[2]
 
-	if len(os.Args) == 4{
+	if len(os.Args) == 4 {
 		dir = os.Args[3]
 	}
 
-
 	ln, err := net.Listen("tcp", port)
-	if err!=nil{
+	if err != nil {
 		fmt.Printf("Error creating a UNIX domain socket.\n")
 		panic(err)
 		return
 	}
 
-	sigs := make(chan os.Signal, 1)	
+	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	go func(){
+	go func() {
 		_ = <-sigs
 		fmt.Printf("\nExiting Server Gracefully.\n")
 		os.Exit(0)
 	}()
-	
+
 	fmt.Printf("Remote File Server -- Listening on port 4560\n")
 
 	var m sync.Mutex
 
 	for {
 		conn, err := ln.Accept()
-		if err!=nil{
+		if err != nil {
 			fmt.Printf("Error in accpeting the connection.\n")
 			return
 		}
@@ -85,17 +81,14 @@ func main(){
 
 }
 
-
-func serveClient(conn net.Conn, m *sync.Mutex){
+func serveClient(conn net.Conn, m *sync.Mutex) {
 
 	fmt.Printf("Started reading the Request\n")
-
-
 
 	d := json.NewDecoder(conn)
 	var receivedReq FileRequest
 	err := d.Decode(&receivedReq)
-	if err!=nil{
+	if err != nil {
 		fmt.Printf("Error in decoding the received message.\n")
 		return
 	}
@@ -104,19 +97,19 @@ func serveClient(conn net.Conn, m *sync.Mutex){
 	var statusToSend int = 1
 	var fileContents []byte
 
-	if receivedReq.Username == id && receivedReq.Password == pass{
+	if receivedReq.Username == id && receivedReq.Password == pass {
 		fmt.Printf("User Validated\n")
-		go printRoutine(sendChannel) 
+		go printRoutine(sendChannel)
 		// check whether the file asked is being transfered.
 		// If yes, wait for the request to complete
-		for{
+		for {
 			m.Lock()
-			if(accessInfo[receivedReq.File] == 0){
+			if accessInfo[receivedReq.File] == 0 {
 				accessInfo[receivedReq.File] = 1
 				break
-			}else{
+			} else {
 				m.Unlock()
-				time.Sleep(lockingInterval*time.Second)
+				time.Sleep(lockingInterval * time.Second)
 			}
 		}
 		m.Unlock()
@@ -127,12 +120,12 @@ func serveClient(conn net.Conn, m *sync.Mutex){
 		accessInfo[receivedReq.File] = 0
 		m.Unlock()
 
-		if err!=nil{
+		if err != nil {
 			statusToSend = 0
-			sendChannel<-1
+			sendChannel <- 1
 		}
-		
-	}else{
+
+	} else {
 		fmt.Printf("Invalid User\n")
 		statusToSend = 0
 	}
@@ -141,28 +134,28 @@ func serveClient(conn net.Conn, m *sync.Mutex){
 	reply.Status = statusToSend
 	reply.FileContents = fileContents
 
-	replyToSend,_ := json.Marshal(&reply)
+	replyToSend, _ := json.Marshal(&reply)
 	conn.Write(replyToSend)
 
 	sendChannel <- 0
 }
 
-func printRoutine(c chan int){
+func printRoutine(c chan int) {
 
 	// print ... every time when processing
 	fmt.Printf("Fetching the file\n")
-	for{
-		select{
-		case recvStatus:=<-c:
-			if recvStatus == 1{
+	for {
+		select {
+		case recvStatus := <-c:
+			if recvStatus == 1 {
 				fmt.Printf("Requested File not found\n")
-			}else{
-			fmt.Printf("\nProcessing done!\n")
+			} else {
+				fmt.Printf("\nProcessing done!\n")
 			}
 			return
 		default:
 			fmt.Printf(".")
-			time.Sleep(time.Millisecond*50)
+			time.Sleep(time.Millisecond * 50)
 		}
 	}
 }
