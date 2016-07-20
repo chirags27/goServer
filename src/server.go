@@ -22,7 +22,7 @@ type FileRequest struct {
 
 type FileResponse struct {
 	Status       int
-	FileContents string
+	FileContents []byte
 }
 
 var id string = "chshah"
@@ -95,7 +95,7 @@ func serveClient(conn net.Conn, m *sync.Mutex) {
 
 	sendChannel := make(chan int)
 	var statusToSend int = 1
-	var fileContentsString string = ""
+	var fileContents []byte
 
 	if receivedReq.Username == id && receivedReq.Password == pass {
 		fmt.Printf("User Validated\n")
@@ -114,13 +114,12 @@ func serveClient(conn net.Conn, m *sync.Mutex) {
 		}
 		m.Unlock()
 
-		fileContents, err := ioutil.ReadFile(dir + receivedReq.File)
+		fileContents, err = ioutil.ReadFile(dir + receivedReq.File)
 
 		m.Lock()
 		accessInfo[receivedReq.File] = 0
 		m.Unlock()
 
-		fileContentsString = string(fileContents)
 		if err != nil {
 			statusToSend = 0
 			sendChannel <- 1
@@ -131,9 +130,9 @@ func serveClient(conn net.Conn, m *sync.Mutex) {
 		statusToSend = 0
 	}
 
-	var reply FileResponse
+	reply := new(FileResponse)
 	reply.Status = statusToSend
-	reply.FileContents = fileContentsString
+	reply.FileContents = fileContents
 
 	replyToSend, _ := json.Marshal(&reply)
 	conn.Write(replyToSend)

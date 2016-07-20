@@ -20,7 +20,7 @@ type FileRequest struct {
 
 type FileResponse struct {
 	Status       int
-	FileContents string
+	FileContents []byte
 }
 
 func main() {
@@ -94,7 +94,7 @@ func main() {
 		panic(err)
 	}
 
-	_, err = f.Write([]byte(resp.FileContents))
+	_, err = f.Write(resp.FileContents)
 
 	if err != nil {
 		panic(err)
